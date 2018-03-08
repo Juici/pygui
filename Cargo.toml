@@ -1,0 +1,18 @@
+[package]
+name = "pygui"
+version = "0.1.0"
+authors = ["James Whaley <juicy66173@gmail.com>"]
+
+[dependencies]
+piston_window = "0.77.0"
+
+[dependencies.pistoncore-glfw_window]
+git = "https://github.com/PistonDevelopers/glfw_window"
+
+[dependencies.pyo3]
+version = "0.2"
+features = ["extension-module"]
+
+[lib]
+name = "pygui"
+crate-type = ["cdylib"]
