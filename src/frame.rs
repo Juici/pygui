@@ -33,8 +33,6 @@ impl Frame {
         }
         self.started = true;
 
-        self.window.set_lazy(true); // TODO: check this
-
         while let Some(e) = self.window.next() {
             if let Some(_) = e.render_args() {
                 let gil = Python::acquire_gil();
