@@ -6,6 +6,7 @@ use pyo3::py::proto as pyproto;
 
 use piston_window::*;
 use glfw_window::GlfwWindow;
+use glfw;
 
 use canvas::Canvas;
 
@@ -48,7 +49,11 @@ impl Frame {
                     // Call the draw handler.
                     let py = gil.python();
                     let args = PyTuple::new(py, &[canvas]);
-                    handler.call(py, args, NoArgs).unwrap();
+
+                    let ret = handler.call(py, args, NoArgs);
+                    if let Err(err) = ret {
+                        return Err(err);
+                    }
                 }
 
                 self.window.draw_2d(&e, |c, g| {
@@ -58,6 +63,8 @@ impl Frame {
                     canvas.draw_canvas(&c, g)
                 });
             }
+
+            // TODO: event handling
         }
 
         Ok(())
@@ -138,6 +145,113 @@ impl Frame {
         self.window.set_position(pos);
         Ok(())
     }
+
+    // Only supported with GLFW.
+
+    /// Returns `true` if the frame is focused.
+    pub fn is_focused(&self) -> PyResult<()> {
+        let w = self.get_glfw_window();
+        w.is_focused();
+        Ok(())
+    }
+
+    /// Focuses the frame.
+    pub fn focus(&mut self) -> PyResult<()> {
+        let w = self.get_glfw_window_mut();
+        w.focus();
+        Ok(())
+    }
+
+    /// Returns `true` if the frame is maximized.
+    pub fn is_maximized(&self) -> PyResult<bool> {
+        let w = self.get_glfw_window();
+        Ok(w.is_maximized())
+    }
+
+    /// Maximizes the frame.
+    pub fn maximize(&mut self) -> PyResult<()> {
+        let w = self.get_glfw_window_mut();
+        w.maximize();
+        Ok(())
+    }
+
+    /// Returns `true` if the frame is minimized.
+    pub fn is_minimized(&self) -> PyResult<bool> {
+        let w = self.get_glfw_window();
+        Ok(w.is_iconified())
+    }
+
+    /// Minimizes the frame.
+    pub fn minimize(&mut self) -> PyResult<()> {
+        let w = self.get_glfw_window_mut();
+        w.iconify();
+        Ok(())
+    }
+
+    /// Restores the frame to a normal state.
+    pub fn restore(&mut self) -> PyResult<()> {
+        let w = self.get_glfw_window_mut();
+        w.restore();
+        Ok(())
+    }
+
+    /// Returns `true` if the frame is fullscreen.
+    pub fn is_fullscreen(&self) -> PyResult<bool> {
+        let mut fullscreen = false;
+        let w = self.get_glfw_window();
+        w.with_window_mode_mut(|m| {
+            match m {
+                glfw::WindowMode::FullScreen(..) => fullscreen = true,
+                _ => (),
+            }
+        });
+
+        Ok(fullscreen)
+    }
+
+    // DEBUG: not sure if we have a way of escaping fullscreen.
+    /// Set the frame to fullscreen.
+    pub fn set_fullscreen(&mut self, resolution: Option<(i32, i32)>) -> PyResult<()> {
+        if let Some(res) = resolution {
+            assert_pyval!(res.0 > 0, "Resolution width must be > 0, got {}", res.0);
+            assert_pyval!(res.1 > 0, "Resolution height must be > 0, got {}", res.1);
+        }
+
+        let w = self.get_glfw_window_mut();
+        let mut glfw = w.glfw;
+        glfw.with_primary_monitor_mut(|_, m| {
+            let monitor = m.unwrap();
+
+            let mode = monitor.get_video_mode().unwrap();
+            let res: (u32, u32) = if let Some(res) = resolution {
+                (res.0 as u32, res.0 as u32)
+            } else {
+                (mode.width, mode.height)
+            };
+
+            w.set_monitor(
+                glfw::WindowMode::FullScreen(&monitor),
+                0, 0,
+                res.0, res.1,
+                Some(mode.refresh_rate),
+            );
+        });
+        Ok(())
+    }
+}
+
+impl Frame {
+    fn get_glfw_window(&self) -> &glfw::Window {
+        let ref w: FrameWindow = self.window;
+        let ref w2: GlfwWindow = w.window;
+        &w2.window
+    }
+
+    fn get_glfw_window_mut(&mut self) -> &mut glfw::Window {
+        let ref mut w: FrameWindow = self.window;
+        let ref mut w2: GlfwWindow = w.window;
+        &mut w2.window
+    }
 }
 
 #[pyproto]
@@ -168,7 +282,7 @@ pub fn create_frame<'p>(py: &'p Python, title: String, width: u32, height: u32, 
 
     let settings = WindowSettings::new(title, (width, height))
         .resizable(resizable)
-        .fullscreen(fullscreen)
+        .fullscreen(fullscreen) // DEBUG: fullscreen appears to be broken
         .opengl(OPENGL_VERSION)
         .samples(SAMPLES)
         .vsync(true)

@@ -3,6 +3,7 @@
 extern crate piston_window;
 extern crate glfw_window;
 extern crate pyo3;
+extern crate glfw;
 
 use pyo3::prelude::*;
 use pyo3::py::modinit as pymodinit;
