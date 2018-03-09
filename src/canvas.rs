@@ -52,6 +52,29 @@ impl<'a> FromPyObject<'a> for Color {
     }
 }
 
+pub struct Poly(Vec<[Scalar; 2]>);
+
+impl Poly {
+    fn as_slice(&self) -> &[[Scalar; 2]] {
+        self.0.as_slice()
+    }
+}
+
+impl<'a> FromPyObject<'a> for Poly {
+    fn extract(ob: &'a PyObjectRef) -> PyResult<Self> {
+        let l = PyList::try_from(ob)?;
+        let mut vec: Vec<[Scalar; 2]> = Vec::with_capacity(l.len());
+
+        for i in 0..(vec.len() as isize) {
+            let o = l.get_item(i);
+            let t = o.extract::<Point>()?;
+            vec.push([t.0, t.1]);
+        }
+
+        Ok(Poly(vec))
+    }
+}
+
 pub enum DrawAction {
     Clear(Color),
     Point(Point, Color),
@@ -71,9 +94,10 @@ pub enum DrawAction {
         bounds: (Scalar, Scalar),
     },
     Polygon {
-        points: Vec<Point>,
+        points: Poly,
         line_color: Color,
         line_width: Option<Scalar>,
+        fill_color: Option<Color>,
     },
     Polyline,
     Line,
@@ -109,31 +133,75 @@ impl Canvas {
 
         while let Some(d) = self.draw_queue.pop_front() {
             match d {
-                DrawAction::Clear(color) => clear(color.into(), g),
+                DrawAction::Clear(color) => {
+                    clear(color.into(), g)
+                }
                 DrawAction::Point(point, color) => {
                     let square = rectangle::square(point.0, point.1, 1.0);
-                    Rectangle::new(color.into())
-                        .draw(square, &Default::default(), c.transform, g);
+                    Rectangle::new(color.into()).draw(
+                        square,
+                        &Default::default(),
+                        c.transform,
+                        g,
+                    );
                 }
-                DrawAction::Image => (), // TODO
-                DrawAction::Circle {
-                    center, radius, line_width, line_color, fill_color
-                } => {
-                    let mut ellipse =
-                        Ellipse::new_border(line_color.into(), line_width.unwrap_or(1.0));
+                DrawAction::Image => {
+                    // TODO
+                }
+                DrawAction::Circle { center, radius, line_width, line_color, fill_color } => {
+                    let mut ellipse = Ellipse::new_border(
+                        line_color.into(),
+                        line_width.unwrap_or(1.0),
+                    );
                     if let Some(fill_color) = fill_color {
                         ellipse = ellipse.color(fill_color.into());
                     }
 
                     let circle = ellipse::circle(center.0, center.1, radius);
-                    ellipse.draw(circle, &Default::default(), c.transform, g);
+                    ellipse.draw(
+                        circle,
+                        &Default::default(),
+                        c.transform,
+                        g,
+                    );
                 }
-                DrawAction::Arc {
-                    center, radius, line_width, line_color, bounds
-                } => {
+                DrawAction::Arc { center, radius, line_width, line_color, bounds } => {
                     let circle = ellipse::circle(center.0, center.1, radius);
-                    CircleArc::new(line_color.into(), line_width.unwrap_or(1.0), bounds.0, bounds.1)
-                        .draw(circle, &Default::default(), c.transform, g);
+                    CircleArc::new(
+                        line_color.into(),
+                        line_width.unwrap_or(1.0),
+                        bounds.0,
+                        bounds.1,
+                    ).draw(
+                        circle,
+                        &Default::default(),
+                        c.transform,
+                        g,
+                    );
+                }
+                DrawAction::Polygon { points, line_color, line_width, fill_color } => {
+                    let slice = points.as_slice();
+                    if let Some(fill) = fill_color {
+                        Polygon::new(fill.into()).draw(
+                            slice,
+                            &Default::default(),
+                            c.transform,
+                            g,
+                        );
+                    }
+
+                    let l = Line::new(line_color.into(), line_width.unwrap_or(1.0));
+                    for i in 0..slice.len() {
+                        let p1: [Scalar; 2] = slice[i];
+                        let p2: [Scalar; 2] = slice[(i + 1) % slice.len()];
+                        let line: [Scalar; 4] = [p1[0], p1[1], p2[0], p2[1]];
+                        l.draw(
+                            line,
+                            &Default::default(),
+                            c.transform,
+                            g,
+                        );
+                    }
                 }
                 _ => (),
             }
@@ -158,6 +226,11 @@ impl Canvas {
     pub fn draw_point(&mut self, point: Point, color: Color) -> PyResult<()> {
         self.draw_queue.push_back(DrawAction::Point(point, color));
         Ok(())
+    }
+
+    /// Draws an image on the canvas.
+    pub fn draw_image(&mut self) -> PyResult<()> {
+        Err(exc::NotImplementedError::new("draw_image is not yet implemented")) // TODO
     }
 
     /// Draws a circle on the canvas.
@@ -190,6 +263,26 @@ impl Canvas {
             line_width,
             line_color,
             bounds,
+        });
+        Ok(())
+    }
+
+    /// Draws a polygon on the canvas.
+    pub fn draw_polygon(&mut self,
+                        points: Poly,
+                        line_color: Color,
+                        line_width: Option<Scalar>,
+                        fill_color: Option<Color>) -> PyResult<()> {
+        {
+            let len = points.as_slice().len();
+            assert_pyval!(len >= 3, "Polygon must have 3 or more points, got {}", len);
+        }
+
+        self.draw_queue.push_back(DrawAction::Polygon {
+            points,
+            line_color,
+            line_width,
+            fill_color,
         });
         Ok(())
     }
