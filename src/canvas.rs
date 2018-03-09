@@ -52,6 +52,7 @@ impl<'a> FromPyObject<'a> for Color {
     }
 }
 
+/// Represents a polygon in 2d.
 pub struct Poly(Vec<[Scalar; 2]>);
 
 impl Poly {
@@ -65,7 +66,7 @@ impl<'a> FromPyObject<'a> for Poly {
         let l = PyList::try_from(ob)?;
         let mut vec: Vec<[Scalar; 2]> = Vec::with_capacity(l.len());
 
-        for i in 0..(vec.len() as isize) {
+        for i in 0..(l.len() as isize) {
             let o = l.get_item(i);
             let t = o.extract::<Point>()?;
             vec.push([t.0, t.1]);
@@ -75,6 +76,7 @@ impl<'a> FromPyObject<'a> for Poly {
     }
 }
 
+/// Represents a drawing action on the canvas.
 pub enum DrawAction {
     Clear(Color),
     Point(Point, Color),
@@ -94,7 +96,7 @@ pub enum DrawAction {
         bounds: (Scalar, Scalar),
     },
     Polygon {
-        points: Poly,
+        vertices: Poly,
         line_color: Color,
         line_width: Option<Scalar>,
         fill_color: Option<Color>,
@@ -179,9 +181,10 @@ impl Canvas {
                         g,
                     );
                 }
-                DrawAction::Polygon { points, line_color, line_width, fill_color } => {
-                    let slice = points.as_slice();
+                DrawAction::Polygon { vertices, line_color, line_width, fill_color } => {
+                    let slice = vertices.as_slice();
                     if let Some(fill) = fill_color {
+                        // TODO: add support for concave polygons.
                         Polygon::new(fill.into()).draw(
                             slice,
                             &Default::default(),
@@ -269,17 +272,17 @@ impl Canvas {
 
     /// Draws a polygon on the canvas.
     pub fn draw_polygon(&mut self,
-                        points: Poly,
+                        vertices: Poly,
                         line_color: Color,
                         line_width: Option<Scalar>,
                         fill_color: Option<Color>) -> PyResult<()> {
         {
-            let len = points.as_slice().len();
-            assert_pyval!(len >= 3, "Polygon must have 3 or more points, got {}", len);
+            let len = vertices.as_slice().len();
+            assert_pyval!(len >= 3, "Polygon must have 3 or more vertices, got {}", len);
         }
 
         self.draw_queue.push_back(DrawAction::Polygon {
-            points,
+            vertices,
             line_color,
             line_width,
             fill_color,
