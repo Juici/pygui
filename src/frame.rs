@@ -169,10 +169,10 @@ pub fn create_frame<'p>(py: &'p Python, title: String, width: u32, height: u32, 
     let settings = WindowSettings::new(title, (width, height))
         .resizable(resizable)
         .fullscreen(fullscreen)
-        .vsync(true)
         .opengl(OPENGL_VERSION)
-        .srgb(false) // TODO: remove when mesa fixes regression bug in 17.X
-        .samples(SAMPLES);
+        .samples(SAMPLES)
+        .vsync(true)
+        .srgb(true);
 
     let window: FrameWindow = FrameWindow::new(
         OPENGL_VERSION,
