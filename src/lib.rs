@@ -14,7 +14,7 @@ mod macros;
 mod frame;
 mod canvas;
 
-#[pymodinit(pygui)]
+#[pymodinit(_pygui)]
 fn init_mod(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<frame::Frame>()?;
     m.add_class::<canvas::Canvas>()?;

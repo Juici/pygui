@@ -1,7 +1,14 @@
 [package]
 name = "pygui"
 version = "0.1.0"
-authors = ["James Whaley <juicy66173@gmail.com>"]
+description = "A simple python gui library written in rust"
+authors = ["Juici <juicy66173@gmail.com>"]
+keywords = ["python", "window", "gui"]
+homepage = "https://github.com/Juici/pygui"
+repository = "https://github.com/Juici/pygui.git"
+readme = "README.md"
+license = "MIT"
+publish = false
 
 [dependencies]
 piston_window = "0.77.0"
